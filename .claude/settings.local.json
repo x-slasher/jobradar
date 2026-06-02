@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"from passlib.context import CryptContext; ctx = CryptContext\\(schemes=['bcrypt'], deprecated='auto'\\); print\\(ctx.hash\\('admin123'\\)\\)\")",
+      "Bash(pip install *)",
+      "Bash(docker compose *)",
+      "Bash(docker exec *)",
+      "Bash(curl *)"
+    ]
+  }
+}

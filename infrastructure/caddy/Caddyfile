@@ -1,0 +1,26 @@
+# ============================================================
+# JobRadar — Caddyfile (Production)
+# Replace yourdomain.com with your actual domain
+# Caddy auto-provisions Let's Encrypt SSL
+# ============================================================
+
+yourdomain.com {
+    # Serve frontend
+    reverse_proxy /api/* fastapi:8000
+    reverse_proxy /* frontend:80
+
+    encode gzip
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    log {
+        output file /var/log/caddy/access.log
+        format json
+    }
+}

@@ -1,0 +1,75 @@
+version: "3.9"
+
+# ============================================================
+# JobRadar — DEVELOPMENT docker-compose
+# Usage: docker compose -f docker-compose.dev.yml up
+# ============================================================
+#
+# NOTE on ADMIN_PASSWORD_HASH: Docker Compose interpolates $ signs in env
+# files. The hash must start with a digit/dot/slash after the third $ so
+# Docker Compose doesn't treat it as a variable reference. Generate a
+# compliant hash with: python backend/generate_hash.py (see CLAUDE.md).
+
+services:
+  fastapi:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./backend:/app           # Hot reload — mounts source code
+      - sqlite_data:/app/data
+    ports:
+      - "8001:8000"              # Exposed directly in dev (8001 avoids conflicts)
+    depends_on:
+      - redis
+    networks:
+      - app_network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    command: celery -A app.tasks.celery_app worker --loglevel=debug --concurrency=1
+    env_file: .env
+    volumes:
+      - ./backend:/app
+      - sqlite_data:/app/data
+    depends_on:
+      - redis
+    networks:
+      - app_network
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    command: celery -A app.tasks.celery_app beat --loglevel=debug
+    env_file: .env
+    volumes:
+      - ./backend:/app
+      - sqlite_data:/app/data
+    depends_on:
+      - redis
+      - celery-worker
+    networks:
+      - app_network
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"              # Exposed in dev for inspection
+    networks:
+      - app_network
+
+volumes:
+  sqlite_data:
+
+networks:
+  app_network:
+    driver: bridge

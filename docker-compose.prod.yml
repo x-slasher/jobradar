@@ -1,0 +1,93 @@
+version: "3.9"
+
+# ============================================================
+# JobRadar — PRODUCTION docker-compose
+# Usage: docker compose -f docker-compose.prod.yml up -d
+# ============================================================
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - app_network
+
+  fastapi:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - sqlite_data:/app/data
+    depends_on:
+      - redis
+    expose:
+      - "8000"                  # Internal only — Caddy proxies to this
+    networks:
+      - app_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "80"
+    depends_on:
+      - fastapi
+    networks:
+      - app_network
+
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=1
+    env_file: .env
+    volumes:
+      - sqlite_data:/app/data
+    depends_on:
+      - redis
+    networks:
+      - app_network
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+    env_file: .env
+    volumes:
+      - sqlite_data:/app/data
+    depends_on:
+      - redis
+      - celery-worker
+    networks:
+      - app_network
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    expose:
+      - "6379"                  # Internal only in production
+    networks:
+      - app_network
+
+volumes:
+  sqlite_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  app_network:
+    driver: bridge

@@ -13,7 +13,7 @@ JobRadar runs on your own server (or laptop) and does the heavy lifting of job h
 1. **Scrapes 8 platforms every day** — We Work Remotely, Himalayas, Arc.dev, RemoteOK, Working Nomads, Empllo, Remotive, and Arbeitnow
 2. **Deduplicates** — SHA-256 fingerprint prevents the same job appearing twice, even across platforms
 3. **Pre-filters by your preferences** — only jobs matching your role titles, experience level, location, and tech stack are saved
-4. **Scores each job against your CV** — one click runs a keyword + tech-stack overlap analysis and produces a 0–100 match score with strengths, gaps, and suggestions
+4. **Scores each job against your CV** — two options: instant local keyword matching (one click, no internet) or AI-powered scoring via Claude.ai (free, copy-paste, more accurate)
 5. **Tracks your application pipeline** — mark jobs as New → Interested → Applied → Skipped
 6. **Auto-cleans old listings** — jobs older than your configured retention window are removed daily
 
@@ -45,15 +45,20 @@ The main view shows all fetched jobs in a paginated table. You can:
 ### Job Detail
 ![Job Detail](docs/screenshots/03_job_detail.png)
 
-The detail page shows everything about a job:
-- Full metadata: company, location, type, date posted, tech stack tags
-- **Match score** (0–100%) displayed prominently in the header
+The detail page shows everything about a job and gives you two ways to score it:
+
+- **Match score** (0–100%) displayed prominently in the header with a score bar
 - **Application Status** selector — click to move between New / Interested / Applied / Skipped
-- **Match with CV** — one-click scoring against your active CV using keyword and tech-stack analysis
-- **AI Analysis** — after matching, shows a summary, your strengths for this role, skill gaps, and suggestions
+- **View Original Posting** — opens the source URL in a new tab
+
+**Get a Match Score — two options:**
+
+- **Option A — Instant (keyword matching):** Click "Match with CV" to score locally in milliseconds using tech-stack and keyword overlap. No internet required. Good for a quick pass over many jobs.
+- **Option B — Claude.ai (AI-powered, free):** A 4-step guided flow — copy the pre-built prompt (your CV + job description), paste it into [claude.ai](https://claude.ai), paste Claude's JSON response back, and save. Gives a much more detailed and accurate score with full reasoning.
+
+**After scoring:**
+- **AI Analysis** — shows a 2–3 sentence summary, your strengths for this role, skill gaps, and tailored suggestions
 - **Job Description** — full HTML description rendered and sanitized
-- **View Original Posting** — opens the source URL
-- **Delete** — permanently removes the job
 
 ---
 
@@ -379,7 +384,9 @@ docker compose -f docker-compose.dev.yml run --rm fastapi python generate_hash.p
 3. Go to **CV** — upload your PDF CV. The app extracts and stores a text summary used for all matching
 4. On the **Job Board**, click **Run Pipeline** to trigger an immediate fetch
 5. Wait ~30 seconds for jobs to appear
-6. Run `docker exec jobradar-fastapi-1 python score_all.py` to score all fetched jobs at once, or open any individual job and click **Match with CV** to score it on demand
+6. Score jobs using one of two methods:
+   - **Quick:** Run `docker exec jobradar-fastapi-1 python score_all.py` to keyword-match all jobs at once
+   - **AI-powered:** Open any job → scroll to "Get a Match Score" → use **Option B** to score via Claude.ai (free, copy-paste)
 
 The pipeline also runs automatically every day at `DAILY_JOB_HOUR:DAILY_JOB_MINUTE`.
 

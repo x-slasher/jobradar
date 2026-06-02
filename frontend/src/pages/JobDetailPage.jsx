@@ -10,17 +10,56 @@ import {
 import { formatDateFull, getPlatformLabel } from '../utils/helpers'
 import {
   ArrowLeft, ExternalLink, CheckCircle, XCircle,
-  Lightbulb, Trash2, Building2, MapPin, Briefcase, Calendar, Zap
+  Lightbulb, Trash2, Building2, MapPin, Briefcase, Calendar, Zap, Copy, Bot
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const STATUSES = ['new', 'interested', 'applied', 'skipped']
+const JOB_DESC_CHAR_LIMIT = 3000
+
+function buildScoringPrompt(job, cvSummary) {
+  const descRaw = typeof job.description_json === 'object'
+    ? JSON.stringify(job.description_json)
+    : (job.description_json || '')
+  const jobData = {
+    title: job.title,
+    company: job.company,
+    location: job.location,
+    job_type: job.job_type,
+    experience_level: job.experience_level,
+    tech_stack: job.tech_stack,
+    description: descRaw.slice(0, JOB_DESC_CHAR_LIMIT),
+  }
+  const cvText = cvSummary || '[No active CV — upload your CV first]'
+  return `You are an expert technical recruiter. Analyze how well a candidate matches a job and respond ONLY with valid JSON — no markdown, no explanation outside the JSON.
+
+## Candidate CV Summary
+${cvText}
+
+## Job (JSON)
+${JSON.stringify(jobData, null, 2)}
+
+## Task
+Return a JSON object with exactly these fields:
+{
+  "score": <integer 0-100>,
+  "summary": "<2-3 sentence overall assessment>",
+  "strengths": ["<strength 1>", "<strength 2>"],
+  "gaps": ["<gap 1>", "<gap 2>"],
+  "suggestions": ["<suggestion 1>", "<suggestion 2>"]
+}
+
+Be specific — reference actual skills and requirements from the job.`
+}
 
 export default function JobDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [rawJson, setRawJson] = useState('')
+  const [parseError, setParseError] = useState('')
+  const [parsedResult, setParsedResult] = useState(null)
 
   const { data: job, isLoading } = useQuery({
     queryKey: ['job', id],
@@ -52,6 +91,19 @@ export default function JobDetailPage() {
     onError: (err) => toast.error(err.response?.data?.detail || 'Matching failed'),
   })
 
+  const scoreMutation = useMutation({
+    mutationFn: (data) => jobsApi.saveScore(id, data),
+    onSuccess: () => {
+      toast.success('Score saved')
+      queryClient.invalidateQueries(['job', id])
+      queryClient.invalidateQueries(['jobs'])
+      setRawJson('')
+      setParsedResult(null)
+      setParseError('')
+    },
+    onError: () => toast.error('Failed to save score'),
+  })
+
   const deleteMutation = useMutation({
     mutationFn: () => jobsApi.delete(id),
     onSuccess: () => {
@@ -74,6 +126,42 @@ export default function JobDetailPage() {
 
   if (isLoading) return <PageSpinner />
   if (!job) return <div className="text-slate-500 text-sm">Job not found</div>
+
+  const prompt = buildScoringPrompt(job, activeCV?.summary)
+
+  function copyPrompt() {
+    navigator.clipboard.writeText(prompt)
+    toast.success('Prompt copied — paste it into Claude.ai')
+  }
+
+  function handleJsonChange(value) {
+    setRawJson(value)
+    setParseError('')
+    setParsedResult(null)
+    if (!value.trim()) return
+    try {
+      const parsed = JSON.parse(value.replace(/```json|```/g, '').trim())
+      const missing = ['score', 'summary', 'strengths', 'gaps', 'suggestions'].filter(k => !(k in parsed))
+      if (missing.length) { setParseError(`Missing fields: ${missing.join(', ')}`); return }
+      parsed.score = Math.max(0, Math.min(100, parseInt(parsed.score)))
+      setParsedResult(parsed)
+    } catch {
+      setParseError("Invalid JSON — copy Claude's full response without any extra text")
+    }
+  }
+
+  function saveScore() {
+    if (!parsedResult) return
+    scoreMutation.mutate({
+      score: parsedResult.score,
+      analysis: {
+        summary: parsedResult.summary,
+        strengths: parsedResult.strengths,
+        gaps: parsedResult.gaps,
+        suggestions: parsedResult.suggestions,
+      },
+    })
+  }
 
   let analysis = null
   try {
@@ -196,23 +284,120 @@ export default function JobDetailPage() {
 
       {/* CV Matching */}
       <div className="card p-6 mb-4">
-        <h2 className="font-display font-semibold text-white mb-1">CV Match Score</h2>
-        <p className="text-xs text-slate-500 font-body mb-4">
-          Instantly score this job against your active CV using keyword and tech-stack analysis.
-        </p>
+        <h2 className="font-display font-semibold text-white mb-4">Get a Match Score</h2>
+
         {!activeCV && (
-          <p className="text-xs text-amber-400 mb-3 font-body">
-            No active CV found — upload your CV first for accurate matching.
-          </p>
+          <div className="mb-4 px-3 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400 font-body">
+            No active CV found — go to the CV page and upload your PDF first.
+          </div>
         )}
-        <button
-          onClick={() => matchMutation.mutate()}
-          disabled={matchMutation.isPending || !activeCV}
-          className="btn-primary flex items-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {matchMutation.isPending ? <Spinner size="sm" /> : <Zap className="w-4 h-4" />}
-          {matchMutation.isPending ? 'Matching…' : 'Match with CV'}
-        </button>
+
+        {/* Option A — local instant match */}
+        <div className="mb-5">
+          <p className="text-xs font-display font-semibold text-slate-400 uppercase tracking-wider mb-1">
+            Option A — Instant (keyword matching)
+          </p>
+          <p className="text-xs text-slate-500 font-body mb-3">
+            Scores your CV against the job's tech stack and keywords locally. Fast but basic — no AI understanding.
+          </p>
+          <button
+            onClick={() => matchMutation.mutate()}
+            disabled={matchMutation.isPending || !activeCV}
+            className="btn-ghost flex items-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {matchMutation.isPending ? <Spinner size="sm" /> : <Zap className="w-4 h-4" />}
+            {matchMutation.isPending ? 'Matching…' : 'Match with CV'}
+          </button>
+        </div>
+
+        {/* Divider */}
+        <div className="flex items-center gap-3 my-5">
+          <div className="flex-1 h-px bg-white/5" />
+          <span className="text-xs text-slate-600 font-body">or</span>
+          <div className="flex-1 h-px bg-white/5" />
+        </div>
+
+        {/* Option B — Claude.ai */}
+        <div>
+          <p className="text-xs font-display font-semibold text-signal uppercase tracking-wider mb-1 flex items-center gap-1.5">
+            <Bot className="w-3.5 h-3.5" /> Option B — Claude.ai (AI-powered, free)
+          </p>
+          <p className="text-xs text-slate-500 font-body mb-4">
+            Claude reads your full CV and the job description and gives a much more accurate score with detailed reasoning. Takes ~30 seconds.
+          </p>
+
+          {/* Step 1 */}
+          <div className="mb-4">
+            <p className="text-xs font-display font-semibold text-white mb-2">
+              Step 1 — Copy the prompt below
+            </p>
+            <div className="relative">
+              <textarea
+                readOnly
+                className="input font-mono text-xs w-full h-36 resize-none pr-20 text-slate-400"
+                value={prompt}
+              />
+              <button
+                className="absolute top-2 right-2 btn-ghost text-xs flex items-center gap-1 py-1 px-2"
+                onClick={copyPrompt}
+              >
+                <Copy className="w-3 h-3" /> Copy
+              </button>
+            </div>
+          </div>
+
+          {/* Step 2 */}
+          <div className="mb-4">
+            <p className="text-xs font-display font-semibold text-white mb-1">
+              Step 2 — Open Claude.ai and paste the prompt
+            </p>
+            <a
+              href="https://claude.ai"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-signal hover:text-signal/80 transition-colors"
+            >
+              <ExternalLink className="w-3 h-3" /> Open Claude.ai
+            </a>
+            <p className="text-xs text-slate-500 font-body mt-1">
+              Paste the prompt, send it, and wait for Claude to reply with a JSON block.
+            </p>
+          </div>
+
+          {/* Step 3 */}
+          <div className="mb-4">
+            <p className="text-xs font-display font-semibold text-white mb-2">
+              Step 3 — Paste Claude's JSON response here
+            </p>
+            <textarea
+              className="input font-mono text-xs w-full h-24 resize-none"
+              placeholder='{"score": 85, "summary": "...", "strengths": [...], "gaps": [...], "suggestions": [...]}'
+              value={rawJson}
+              onChange={e => handleJsonChange(e.target.value)}
+            />
+            {parseError && (
+              <p className="text-xs text-red-400 mt-1.5 font-body">{parseError}</p>
+            )}
+            {parsedResult && (
+              <div className="mt-2 px-3 py-2.5 rounded-lg bg-signal-muted border border-signal/20">
+                <p className="text-xs text-signal font-semibold font-mono">Score: {parsedResult.score}%</p>
+                {parsedResult.summary && (
+                  <p className="text-xs text-slate-400 mt-1 font-body line-clamp-2">{parsedResult.summary}</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Step 4 */}
+          <button
+            onClick={saveScore}
+            disabled={!parsedResult || scoreMutation.isPending}
+            className="btn-primary flex items-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {scoreMutation.isPending && <Spinner size="sm" />}
+            Step 4 — Save Score
+          </button>
+        </div>
       </div>
 
       {/* AI Analysis */}

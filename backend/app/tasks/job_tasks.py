@@ -7,6 +7,11 @@ from app.models.models import Job, Platform
 from app.services.scrapers.weworkremotely import WeWorkRemotelyScraper
 from app.services.scrapers.himalayas import HimalayanScraper
 from app.services.scrapers.arcdev import ArcDevScraper
+from app.services.scrapers.remoteok import RemoteOKScraper
+from app.services.scrapers.workingnomads import WorkingNomadsScraper
+from app.services.scrapers.empllo import EmplloScraper
+from app.services.scrapers.remotive import RemotiveScraper
+from app.services.scrapers.arbeitnow import ArbeitnowScraper
 from app.services.deduplicator import deduplicate_jobs
 from app.services.filter_service import apply_filters
 from app.core.config import get_settings
@@ -15,7 +20,16 @@ import logging
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-SCRAPERS = [WeWorkRemotelyScraper(), HimalayanScraper(), ArcDevScraper()]
+SCRAPERS = [
+    WeWorkRemotelyScraper(),
+    HimalayanScraper(),
+    ArcDevScraper(),
+    RemoteOKScraper(),
+    WorkingNomadsScraper(),
+    EmplloScraper(),
+    RemotiveScraper(),
+    ArbeitnowScraper(),
+]
 
 
 @celery_app.task(bind=True, name="app.tasks.job_tasks.run_daily_job_pipeline")

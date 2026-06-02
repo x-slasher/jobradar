@@ -7,7 +7,7 @@ import json
 
 from app.db.database import get_db
 from app.core.dependencies import get_current_user
-from app.models.models import Job
+from app.models.models import Job, CVVersion
 from app.schemas.schemas import (
     JobListItem, JobDetail, JobStatusUpdate, JobScoreUpdate,
     PaginatedJobResponse, TaskStatusResponse
@@ -132,6 +132,37 @@ def delete_job(
     db.delete(job)
     db.commit()
     return {"message": "Job deleted"}
+
+
+@router.post("/{job_id}/match")
+def match_job_with_cv(
+    job_id: int,
+    db: Session = Depends(get_db),
+    _: str = Depends(get_current_user),
+):
+    """Score a job against the active CV using keyword-based matching."""
+    job = db.query(Job).filter(Job.id == job_id, Job.is_deleted == False).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    cv = db.query(CVVersion).filter(CVVersion.is_active == True).first()
+    if not cv or not cv.summary:
+        raise HTTPException(status_code=400, detail="No active CV found. Upload a CV first.")
+
+    from app.services.match_service import match_cv_to_job
+    result = match_cv_to_job(cv.summary, job)
+
+    job.score = result["score"]
+    job.analysis = json.dumps({
+        "summary": result["summary"],
+        "strengths": result["strengths"],
+        "gaps": result["gaps"],
+        "suggestions": result["suggestions"],
+    })
+    job.cv_version_id = cv.id
+    db.commit()
+
+    return result
 
 
 @router.post("/trigger", response_model=TaskStatusResponse)

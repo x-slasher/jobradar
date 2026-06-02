@@ -20,7 +20,7 @@ def init_db():
 
 def _seed_platforms(db: Session):
     """Insert default active platforms if they don't exist."""
-    platforms = ["weworkremotely", "himalayas", "arcdev"]
+    platforms = ["weworkremotely", "himalayas", "arcdev", "remoteok", "workingnomads", "empllo", "remotive", "arbeitnow"]
     for name in platforms:
         exists = db.query(Platform).filter(Platform.name == name).first()
         if not exists:

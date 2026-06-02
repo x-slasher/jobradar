@@ -1,12 +1,14 @@
 import { useState, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { cvApi } from '../api/client'
-import { SectionHeader, PageSpinner, EmptyState } from '../components/ui'
+import { SectionHeader, PageSpinner, Spinner, EmptyState } from '../components/ui'
 import { formatDateFull } from '../utils/helpers'
 import { FileText, Upload, CheckCircle, File } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function CVPage() {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const fileRef = useRef(null)
   const [dragging, setDragging] = useState(false)
@@ -19,8 +21,9 @@ export default function CVPage() {
   const uploadMutation = useMutation({
     mutationFn: (file) => cvApi.upload(file),
     onSuccess: () => {
-      toast.success('CV uploaded and activated')
       queryClient.invalidateQueries(['cv'])
+      toast.success('CV uploaded successfully')
+      navigate(-1)
     },
     onError: (err) => toast.error(err.response?.data?.detail || 'Upload failed'),
   })
@@ -56,7 +59,7 @@ export default function CVPage() {
     <div className="page-enter max-w-3xl">
       <SectionHeader
         title="CV Management"
-        subtitle="Upload your CV to generate scoring prompts for Claude.ai"
+        subtitle="Upload your CV to enable automatic job matching and scoring"
       />
 
       {/* Upload area */}

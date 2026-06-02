@@ -14,7 +14,7 @@ import {
 import toast from 'react-hot-toast'
 
 const PAGE_SIZES = [20, 50, 100]
-const PLATFORMS = ['', 'weworkremotely', 'himalayas', 'arcdev']
+const PLATFORMS = ['', 'weworkremotely', 'himalayas', 'arcdev', 'remoteok', 'workingnomads', 'empllo', 'remotive', 'arbeitnow']
 const STATUSES = ['', 'new', 'interested', 'applied', 'skipped']
 const SORT_OPTIONS = [
   { value: 'fetched_at', label: 'Date Fetched' },
@@ -133,6 +133,11 @@ export default function DashboardPage() {
             <option value="weworkremotely">We Work Remotely</option>
             <option value="himalayas">Himalayas</option>
             <option value="arcdev">Arc.dev</option>
+            <option value="remoteok">RemoteOK</option>
+            <option value="workingnomads">Working Nomads</option>
+            <option value="empllo">Empllo</option>
+            <option value="remotive">Remotive</option>
+            <option value="arbeitnow">Arbeitnow</option>
           </select>
 
           {/* Status */}
@@ -150,6 +155,7 @@ export default function DashboardPage() {
 
           {/* Score range */}
           <div className="flex items-center gap-1.5">
+            <span className="text-xs text-slate-500 font-body whitespace-nowrap">Score</span>
             <input
               className="input text-xs py-1.5 w-16"
               placeholder="Min %"

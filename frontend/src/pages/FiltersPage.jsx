@@ -139,17 +139,7 @@ export default function FiltersPage() {
     <div className="page-enter max-w-2xl">
       <SectionHeader
         title="Job Filters"
-        subtitle="Define your preferences — only matching jobs are sent to Claude for scoring"
-        action={
-          <button
-            className="btn-primary flex items-center gap-1.5 text-sm"
-            onClick={() => saveMutation.mutate()}
-            disabled={saveMutation.isPending}
-          >
-            {saveMutation.isPending ? <Spinner size="sm" /> : <Save className="w-4 h-4" />}
-            Save Filters
-          </button>
-        }
+        subtitle="Define your preferences — only matching jobs are fetched and saved to your board"
       />
 
       <div className="space-y-4">
@@ -173,6 +163,9 @@ export default function FiltersPage() {
             values={form.experience_level}
             onChange={v => set('experience_level', v)}
           />
+          <p className="text-xs text-slate-600 mt-2 font-body">
+            {form.experience_level.length === 0 ? 'No filter — all levels included' : `Showing: ${form.experience_level.join(', ')}`}
+          </p>
         </div>
 
         {/* Location type */}
@@ -183,6 +176,9 @@ export default function FiltersPage() {
             values={form.location_type}
             onChange={v => set('location_type', v)}
           />
+          <p className="text-xs text-slate-600 mt-2 font-body">
+            {form.location_type.length === 0 ? 'No filter — all types included' : `Showing: ${form.location_type.join(', ')}`}
+          </p>
         </div>
 
         {/* Location region */}

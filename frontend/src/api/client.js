@@ -12,6 +12,7 @@ api.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       window.location.href = '/login'
+      return new Promise(() => {}) // suppress onError — page is navigating away
     }
     return Promise.reject(err)
   }
@@ -30,6 +31,7 @@ export const jobsApi = {
   get: (id) => api.get(`/jobs/${id}`),
   updateStatus: (id, status) => api.patch(`/jobs/${id}/status`, { status }),
   saveScore: (id, data) => api.patch(`/jobs/${id}/score`, data),
+  match: (id) => api.post(`/jobs/${id}/match`),
   delete: (id) => api.delete(`/jobs/${id}`),
   trigger: () => api.post('/jobs/trigger'),
   taskStatus: (taskId) => api.get(`/jobs/task/${taskId}`),

@@ -6,7 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-HIMALAYAS_API_URL = "https://himalayas.app/api/jobs"
+HIMALAYAS_API_URL = "https://himalayas.app/jobs/api"
 
 
 class HimalayanScraper(BaseScraper):
@@ -14,7 +14,7 @@ class HimalayanScraper(BaseScraper):
 
     async def fetch(self, from_dt: datetime, to_dt: datetime) -> List[NormalizedJob]:
         jobs = []
-        page = 1
+        offset = 0
         limit = 50
 
         try:
@@ -22,7 +22,7 @@ class HimalayanScraper(BaseScraper):
                 while True:
                     response = await client.get(
                         HIMALAYAS_API_URL,
-                        params={"limit": limit, "offset": (page - 1) * limit},
+                        params={"limit": limit, "offset": offset},
                     )
                     response.raise_for_status()
                     data = response.json()
@@ -31,24 +31,29 @@ class HimalayanScraper(BaseScraper):
                     if not entries:
                         break
 
+                    oldest_on_page = None
                     for entry in entries:
                         try:
-                            posted_at = self._parse_date(entry.get("createdAt", ""))
+                            posted_at = self._parse_date(entry.get("pubDate"))
+                            if oldest_on_page is None or (posted_at and posted_at < oldest_on_page):
+                                oldest_on_page = posted_at
 
-                            # Apply time window
                             if posted_at and not (from_dt <= posted_at <= to_dt):
                                 continue
+
+                            location_list = entry.get("locationRestrictions") or []
+                            location = ", ".join(location_list) if location_list else "Anywhere"
 
                             job = NormalizedJob(
                                 platform=self.PLATFORM_NAME,
                                 title=entry.get("title", ""),
-                                company=entry.get("company", {}).get("name", "Unknown"),
-                                url=entry.get("applicationLink") or entry.get("url", ""),
+                                company=entry.get("companyName", "Unknown"),
+                                url=entry.get("applicationLink") or entry.get("guid", ""),
                                 description=entry.get("description", ""),
-                                location=entry.get("locationRestrictions", "Anywhere"),
+                                location=location,
                                 job_type=self._map_job_type(entry),
                                 experience_level=self._map_experience(entry),
-                                location_region=entry.get("locationRestrictions", "Anywhere"),
+                                location_region=location,
                                 tech_stack=self._extract_tech(entry),
                                 salary=self._extract_salary(entry),
                                 posted_at=posted_at,
@@ -60,11 +65,10 @@ class HimalayanScraper(BaseScraper):
                             logger.warning(f"Himalayas: Error parsing entry: {e}")
                             continue
 
-                    # Stop paginating if we've passed the time window
-                    if entries and posted_at and posted_at < from_dt:
+                    if oldest_on_page and oldest_on_page < from_dt:
                         break
 
-                    page += 1
+                    offset += limit
 
         except Exception as e:
             logger.error(f"Himalayas: Fetch failed: {e}")
@@ -72,31 +76,38 @@ class HimalayanScraper(BaseScraper):
         logger.info(f"Himalayas: Fetched {len(jobs)} jobs")
         return jobs
 
-    def _parse_date(self, date_str: str) -> datetime:
+    def _parse_date(self, value) -> datetime:
+        if value is None:
+            return None
         try:
-            dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-            return dt
+            if isinstance(value, (int, float)):
+                return datetime.fromtimestamp(value, tz=timezone.utc)
+            return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         except Exception:
             return None
 
     def _map_job_type(self, entry: dict) -> str:
-        remote = entry.get("isRemote", False)
-        return "remote" if remote else "onsite"
+        restrictions = entry.get("locationRestrictions") or []
+        if not restrictions or restrictions == ["Anywhere"]:
+            return "remote"
+        employment = (entry.get("employmentType") or "").lower()
+        if "remote" in employment:
+            return "remote"
+        return "remote"  # Himalayas is a remote-first board
 
     def _map_experience(self, entry: dict) -> str:
-        level = entry.get("jobType", "") or entry.get("seniority", "")
+        seniority = entry.get("seniority") or []
+        level = " ".join(seniority) if isinstance(seniority, list) else str(seniority)
         return self.normalize_experience_level(level)
 
     def _extract_tech(self, entry: dict) -> List[str]:
-        tech_list = entry.get("techStack", []) or []
-        if isinstance(tech_list, list):
-            return [t.get("name", t) if isinstance(t, dict) else t for t in tech_list]
-        return []
+        categories = entry.get("categories") or []
+        return [c.replace("-", " ").title() for c in categories[:5]] if categories else []
 
     def _extract_salary(self, entry: dict) -> str:
-        salary_min = entry.get("salaryMin")
-        salary_max = entry.get("salaryMax")
-        currency = entry.get("salaryCurrency", "USD")
+        salary_min = entry.get("minSalary")
+        salary_max = entry.get("maxSalary")
+        currency = entry.get("currency", "USD")
         if salary_min and salary_max:
             return f"{currency} {salary_min:,} – {salary_max:,}"
         if salary_min:

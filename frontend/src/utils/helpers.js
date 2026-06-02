@@ -23,8 +23,13 @@ export const STATUS_CONFIG = {
 
 export const PLATFORM_CONFIG = {
   weworkremotely: { label: 'We Work Remotely', short: 'WWR', color: 'text-orange-400' },
-  himalayas: { label: 'Himalayas', short: 'HIM', color: 'text-sky-400' },
-  arcdev: { label: 'Arc.dev', short: 'ARC', color: 'text-purple-400' },
+  himalayas:      { label: 'Himalayas',         short: 'HIM', color: 'text-sky-400' },
+  arcdev:         { label: 'Arc.dev',            short: 'ARC', color: 'text-purple-400' },
+  remoteok:       { label: 'RemoteOK',           short: 'ROK', color: 'text-green-400' },
+  workingnomads:  { label: 'Working Nomads',     short: 'WN',  color: 'text-teal-400' },
+  empllo:         { label: 'Empllo',             short: 'EMP', color: 'text-pink-400' },
+  remotive:       { label: 'Remotive',           short: 'RMT', color: 'text-indigo-400' },
+  arbeitnow:      { label: 'Arbeitnow',          short: 'ABN', color: 'text-yellow-400' },
 }
 
 export function formatDate(dateStr) {

@@ -1,4 +1,3 @@
-version: "3.9"
 
 # ============================================================
 # JobRadar — DEVELOPMENT docker-compose
@@ -59,11 +58,26 @@ services:
     networks:
       - app_network
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules          # keeps container node_modules isolated from host
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_TARGET=http://fastapi:8000
+    depends_on:
+      - fastapi
+    networks:
+      - app_network
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports:
-      - "6379:6379"              # Exposed in dev for inspection
     networks:
       - app_network
 

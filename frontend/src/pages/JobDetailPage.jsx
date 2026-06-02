@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import DOMPurify from 'dompurify'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { jobsApi, cvApi } from '../api/client'
@@ -9,59 +10,17 @@ import {
 import { formatDateFull, getPlatformLabel } from '../utils/helpers'
 import {
   ArrowLeft, ExternalLink, CheckCircle, XCircle,
-  Lightbulb, Trash2, Building2, MapPin, Briefcase, Calendar, Copy
+  Lightbulb, Trash2, Building2, MapPin, Briefcase, Calendar, Zap
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const STATUSES = ['new', 'interested', 'applied', 'skipped']
-const JOB_DESC_CHAR_LIMIT = 3000
-
-function buildScoringPrompt(job, cvSummary) {
-  const descRaw = typeof job.description_json === 'object'
-    ? JSON.stringify(job.description_json)
-    : (job.description_json || '')
-
-  const jobData = {
-    title: job.title,
-    company: job.company,
-    location: job.location,
-    job_type: job.job_type,
-    experience_level: job.experience_level,
-    tech_stack: job.tech_stack,
-    description: descRaw.slice(0, JOB_DESC_CHAR_LIMIT),
-  }
-
-  const cvText = cvSummary || '[No active CV — upload your CV first on the CV page]'
-
-  return `You are an expert technical recruiter and career advisor. Analyze a job description and assess how well a candidate's profile matches it. Respond ONLY in valid JSON with no markdown, no preamble, and no explanation outside the JSON.
-
-## Candidate CV Summary
-${cvText}
-
-## Job Description (JSON)
-${JSON.stringify(jobData, null, 2)}
-
-## Task
-Analyze how well this candidate matches the job. Return a JSON object with exactly these fields:
-{
-  "score": <integer 0-100>,
-  "summary": "<2-3 sentence overall assessment>",
-  "strengths": ["<strength 1>", "<strength 2>"],
-  "gaps": ["<gap 1>", "<gap 2>"],
-  "suggestions": ["<suggestion 1>", "<suggestion 2>"]
-}
-
-Be specific and reference actual skills, experience, and requirements.`
-}
 
 export default function JobDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [rawJson, setRawJson] = useState('')
-  const [parseError, setParseError] = useState('')
-  const [parsedResult, setParsedResult] = useState(null)
 
   const { data: job, isLoading } = useQuery({
     queryKey: ['job', id],
@@ -83,17 +42,14 @@ export default function JobDetailPage() {
     onError: () => toast.error('Failed to update status'),
   })
 
-  const scoreMutation = useMutation({
-    mutationFn: (data) => jobsApi.saveScore(id, data),
+  const matchMutation = useMutation({
+    mutationFn: () => jobsApi.match(id),
     onSuccess: () => {
-      toast.success('Score saved')
+      toast.success('CV matched — score saved')
       queryClient.invalidateQueries(['job', id])
       queryClient.invalidateQueries(['jobs'])
-      setRawJson('')
-      setParsedResult(null)
-      setParseError('')
     },
-    onError: () => toast.error('Failed to save score'),
+    onError: (err) => toast.error(err.response?.data?.detail || 'Matching failed'),
   })
 
   const deleteMutation = useMutation({
@@ -106,6 +62,16 @@ export default function JobDetailPage() {
     onError: () => toast.error('Delete failed'),
   })
 
+  const descriptionHtml = useMemo(() => {
+    const raw = job?.description_json
+    if (!raw) return null
+    const text = typeof raw === 'string' ? raw : (raw.description || raw.summary || null)
+    if (!text) return null
+    return /<[a-z][\s\S]*>/i.test(text)
+      ? DOMPurify.sanitize(text, { USE_PROFILES: { html: true } })
+      : text
+  }, [job?.description_json])
+
   if (isLoading) return <PageSpinner />
   if (!job) return <div className="text-slate-500 text-sm">Job not found</div>
 
@@ -115,46 +81,6 @@ export default function JobDetailPage() {
   } catch {}
 
   const techStack = job.tech_stack || []
-  const prompt = buildScoringPrompt(job, activeCV?.summary)
-
-  function copyPrompt() {
-    navigator.clipboard.writeText(prompt)
-    toast.success('Prompt copied to clipboard')
-  }
-
-  function handleJsonChange(value) {
-    setRawJson(value)
-    setParseError('')
-    setParsedResult(null)
-    if (!value.trim()) return
-    try {
-      const cleaned = value.replace(/```json|```/g, '').trim()
-      const parsed = JSON.parse(cleaned)
-      const required = ['score', 'summary', 'strengths', 'gaps', 'suggestions']
-      const missing = required.filter(k => !(k in parsed))
-      if (missing.length > 0) {
-        setParseError(`Missing required fields: ${missing.join(', ')}`)
-        return
-      }
-      parsed.score = Math.max(0, Math.min(100, parseInt(parsed.score)))
-      setParsedResult(parsed)
-    } catch {
-      setParseError("Invalid JSON — make sure you copied Claude's full response")
-    }
-  }
-
-  function saveScore() {
-    if (!parsedResult) return
-    scoreMutation.mutate({
-      score: parsedResult.score,
-      analysis: {
-        summary: parsedResult.summary,
-        strengths: parsedResult.strengths,
-        gaps: parsedResult.gaps,
-        suggestions: parsedResult.suggestions,
-      },
-    })
-  }
 
   return (
     <div className="page-enter max-w-4xl">
@@ -180,7 +106,7 @@ export default function JobDetailPage() {
               {job.title}
             </h1>
 
-            <div className="flex items-center flex-wrap gap-3 mt-3 text-xs text-slate-500">
+            <div className="flex items-center flex-wrap gap-3 mt-3 text-sm text-slate-400">
               <span className="flex items-center gap-1.5">
                 <Building2 className="w-3.5 h-3.5" /> {job.company}
               </span>
@@ -265,86 +191,27 @@ export default function JobDetailPage() {
             </button>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-            <span className="text-xs text-slate-500 font-body">Current status</span>
-            <StatusBadge status={job.status} />
-          </div>
         </div>
       </div>
 
-      {/* Score with Claude.ai */}
+      {/* CV Matching */}
       <div className="card p-6 mb-4">
-        <h2 className="font-display font-semibold text-white mb-1">Score with Claude.ai</h2>
-        <p className="text-xs text-slate-500 font-body mb-5">
-          Copy the prompt, paste it into Claude.ai, then save the JSON response here.
+        <h2 className="font-display font-semibold text-white mb-1">CV Match Score</h2>
+        <p className="text-xs text-slate-500 font-body mb-4">
+          Instantly score this job against your active CV using keyword and tech-stack analysis.
         </p>
-
-        {/* Step 1 — copy prompt */}
-        <div className="mb-5">
-          <p className="label mb-2">1 — Copy the scoring prompt</p>
-          {!activeCV && (
-            <p className="text-xs text-amber-400 mb-2 font-body">
-              No active CV found. Upload your CV on the CV page for accurate scoring.
-            </p>
-          )}
-          <div className="relative">
-            <textarea
-              readOnly
-              className="input font-mono text-xs w-full h-48 resize-none pr-24"
-              value={prompt}
-            />
-            <button
-              className="absolute top-2 right-2 btn-ghost text-xs flex items-center gap-1"
-              onClick={copyPrompt}
-            >
-              <Copy className="w-3 h-3" />
-              Copy
-            </button>
-          </div>
-          <a
-            href="https://claude.ai"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-signal hover:text-signal/80 transition-colors mt-2"
-          >
-            Open Claude.ai <ExternalLink className="w-3 h-3" />
-          </a>
-        </div>
-
-        {/* Step 2 — paste response */}
-        <div className="mb-5">
-          <p className="label mb-2">2 — Paste Claude's JSON response</p>
-          <textarea
-            className="input font-mono text-xs w-full h-28 resize-none"
-            placeholder='{"score": 85, "summary": "...", "strengths": [...], "gaps": [...], "suggestions": [...]}'
-            value={rawJson}
-            onChange={e => handleJsonChange(e.target.value)}
-          />
-          {parseError && (
-            <p className="text-xs text-red-400 mt-1.5 font-body">{parseError}</p>
-          )}
-          {parsedResult && (
-            <div className="mt-2 px-3 py-2.5 rounded-lg bg-signal-muted border border-signal/20">
-              <p className="text-xs text-signal font-semibold">
-                Score: {parsedResult.score}%
-              </p>
-              {parsedResult.summary && (
-                <p className="text-xs text-slate-400 mt-1 font-body line-clamp-2">
-                  {parsedResult.summary}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Step 3 — save */}
+        {!activeCV && (
+          <p className="text-xs text-amber-400 mb-3 font-body">
+            No active CV found — upload your CV first for accurate matching.
+          </p>
+        )}
         <button
-          onClick={saveScore}
-          disabled={!parsedResult || scoreMutation.isPending}
+          onClick={() => matchMutation.mutate()}
+          disabled={matchMutation.isPending || !activeCV}
           className="btn-primary flex items-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {scoreMutation.isPending && <Spinner size="sm" />}
-          3 — Save Score
+          {matchMutation.isPending ? <Spinner size="sm" /> : <Zap className="w-4 h-4" />}
+          {matchMutation.isPending ? 'Matching…' : 'Match with CV'}
         </button>
       </div>
 
@@ -354,7 +221,7 @@ export default function JobDetailPage() {
           <h2 className="font-display font-semibold text-white">AI Analysis</h2>
 
           {analysis.summary && (
-            <p className="text-sm text-slate-300 font-body leading-relaxed border-l-2 border-signal/40 pl-4">
+            <p className="text-sm text-slate-200 font-body leading-relaxed border-l-2 border-signal/50 pl-4 py-1">
               {analysis.summary}
             </p>
           )}
@@ -367,7 +234,7 @@ export default function JobDetailPage() {
                 </p>
                 <ul className="space-y-1.5">
                   {analysis.strengths.map((s, i) => (
-                    <li key={i} className="text-xs text-slate-400 font-body leading-relaxed flex gap-2">
+                    <li key={i} className="text-sm text-slate-300 font-body leading-relaxed flex gap-2">
                       <span className="text-signal mt-0.5 flex-shrink-0">·</span>
                       <span>{s}</span>
                     </li>
@@ -383,7 +250,7 @@ export default function JobDetailPage() {
                 </p>
                 <ul className="space-y-1.5">
                   {analysis.gaps.map((g, i) => (
-                    <li key={i} className="text-xs text-slate-400 font-body leading-relaxed flex gap-2">
+                    <li key={i} className="text-sm text-slate-300 font-body leading-relaxed flex gap-2">
                       <span className="text-red-400 mt-0.5 flex-shrink-0">·</span>
                       <span>{g}</span>
                     </li>
@@ -399,7 +266,7 @@ export default function JobDetailPage() {
                 </p>
                 <ul className="space-y-1.5">
                   {analysis.suggestions.map((s, i) => (
-                    <li key={i} className="text-xs text-slate-400 font-body leading-relaxed flex gap-2">
+                    <li key={i} className="text-sm text-slate-300 font-body leading-relaxed flex gap-2">
                       <span className="text-amber-400 mt-0.5 flex-shrink-0">·</span>
                       <span>{s}</span>
                     </li>
@@ -411,15 +278,14 @@ export default function JobDetailPage() {
         </div>
       )}
 
-      {/* Raw description */}
-      {job.description_json && (
+      {/* Job description */}
+      {descriptionHtml && (
         <div className="card p-6">
           <h2 className="font-display font-semibold text-white mb-4">Job Description</h2>
-          <div className="text-sm text-slate-400 font-body leading-relaxed whitespace-pre-wrap">
-            {typeof job.description_json === 'object'
-              ? JSON.stringify(job.description_json, null, 2)
-              : job.description_json}
-          </div>
+          <div
+            className="job-description"
+            dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+          />
         </div>
       )}
 

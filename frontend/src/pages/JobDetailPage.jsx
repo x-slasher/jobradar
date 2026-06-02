@@ -395,7 +395,7 @@ export default function JobDetailPage() {
             className="btn-primary flex items-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {scoreMutation.isPending && <Spinner size="sm" />}
-            Step 4 — Save Score
+            Save Score
           </button>
         </div>
       </div>

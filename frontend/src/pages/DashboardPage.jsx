@@ -86,17 +86,17 @@ export default function DashboardPage() {
         subtitle={total > 0 ? `${total} jobs matched your profile` : 'Run the pipeline to fetch jobs'}
         action={
           <button
-            className="btn-primary flex items-center gap-1.5 text-xs"
-            onClick={() => triggerMutation.mutate()}
-            disabled={triggerMutation.isPending}
-          >
-            {triggerMutation.isPending ? <Spinner size="sm" /> : <Play className="w-3.5 h-3.5" />}
-            Run Pipeline
-          </button>
+              className="btn-primary flex items-center gap-1.5 text-xs"
+              onClick={() => triggerMutation.mutate()}
+              disabled={triggerMutation.isPending}
+            >
+              {triggerMutation.isPending ? <Spinner size="sm" /> : <Play className="w-3.5 h-3.5" />}
+              Run Pipeline
+            </button>
         }
       />
 
-      {/* Task running indicator */}
+      {/* Pipeline running indicator */}
       {taskId && (
         <div className="mb-4 px-4 py-2.5 rounded-lg bg-signal-muted border border-signal/20 flex items-center gap-2 text-sm text-signal">
           <Spinner size="sm" />

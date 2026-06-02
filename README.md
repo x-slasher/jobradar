@@ -181,7 +181,8 @@ jobradar/
 │   │   └── tasks/              # celery_app.py, job_tasks.py
 │   ├── Dockerfile              # Production (non-root user)
 │   ├── Dockerfile.dev          # Development (hot reload)
-│   └── generate_hash.py        # Helper to generate bcrypt password hash
+│   ├── generate_hash.py        # Helper to generate bcrypt password hash
+│   └── score_all.py            # CLI command to bulk-score all jobs against the active CV
 │
 ├── frontend/
 │   ├── src/
@@ -336,13 +337,49 @@ All configuration lives in `.env`. Copy `.env.development` or `.env.production` 
 
 ---
 
+## Management Commands
+
+These are backend scripts you run manually via `docker exec`. No browser needed.
+
+### Score all jobs against your CV
+
+Runs the CV matching algorithm on every job in the database and saves a score + analysis for each one. Runs in seconds even for hundreds of jobs.
+
+```bash
+# Score only unscored jobs (safe to run any time — skips jobs that already have a score)
+docker exec jobradar-fastapi-1 python score_all.py
+
+# Re-score everything, including jobs that already have a score
+# Use this after uploading a new CV to refresh all results
+docker exec jobradar-fastapi-1 python score_all.py --all
+```
+
+Example output:
+
+```
+Re-scoring all 862 jobs against CV: Nayeem_Hasan_CV.pdf
+--------------------------------------------------
+[##############################] 100%  862/862  (50% — Data Scientist)
+--------------------------------------------------
+Done in 4.6s — 862 scored, 0 failed
+```
+
+### Generate a bcrypt password hash
+
+```bash
+docker compose -f docker-compose.dev.yml run --rm fastapi python generate_hash.py
+```
+
+---
+
 ## First Use
 
 1. Log in at `/login`
 2. Go to **Filters** — set your role titles (e.g. "Backend Engineer"), tech stack (e.g. "Python", "Docker"), and experience level. This controls what gets saved on every future pipeline run
 3. Go to **CV** — upload your PDF CV. The app extracts and stores a text summary used for all matching
 4. On the **Job Board**, click **Run Pipeline** to trigger an immediate fetch
-5. Wait ~30 seconds for jobs to appear, then open any job and click **Match with CV** to get a score and analysis
+5. Wait ~30 seconds for jobs to appear
+6. Run `docker exec jobradar-fastapi-1 python score_all.py` to score all fetched jobs at once, or open any individual job and click **Match with CV** to score it on demand
 
 The pipeline also runs automatically every day at `DAILY_JOB_HOUR:DAILY_JOB_MINUTE`.
 

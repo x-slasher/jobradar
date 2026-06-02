@@ -1,3 +1,7 @@
+# ── Claude Code ──────────────────────────────────────────────
+.claude/
+CLAUDE.md
+
 # ── Secrets — NEVER commit ───────────────────────────────────
 .env
 *.env.local

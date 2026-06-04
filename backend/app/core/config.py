@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import model_validator
 from functools import lru_cache
 
 
@@ -15,7 +16,15 @@ class Settings(BaseSettings):
 
     # Admin credentials
     ADMIN_USERNAME: str
-    ADMIN_PASSWORD_HASH: str
+    ADMIN_PASSWORD: str
+    admin_password_hash: str = ""
+
+    @model_validator(mode="after")
+    def _hash_admin_password(self) -> "Settings":
+        from passlib.context import CryptContext
+        ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        self.admin_password_hash = ctx.hash(self.ADMIN_PASSWORD)
+        return self
 
     # Database
     DATABASE_URL: str = "sqlite:////app/data/jobs.db"

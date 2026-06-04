@@ -234,23 +234,17 @@ docker compose -f docker-compose.dev.yml build fastapi
 # Generate a random secret key
 docker compose -f docker-compose.dev.yml run --rm fastapi \
   python -c "import secrets; print(secrets.token_hex(32))"
-
-# Generate a bcrypt hash for your admin password
-docker compose -f docker-compose.dev.yml run --rm fastapi \
-  python generate_hash.py
 ```
 
-> **Important:** The bcrypt hash must have a digit, `.`, or `/` immediately after the third `$` — Docker Compose treats a letter there as a variable name. If the first character after `$2b$12$` is a letter, run `generate_hash.py` again until you get a safe one.
-
 Edit `.env` and fill in:
-- `SECRET_KEY` — output from the first command
+- `SECRET_KEY` — output from the command above
 - `ADMIN_USERNAME` — your login username (e.g. `admin`)
-- `ADMIN_PASSWORD_HASH` — bcrypt hash from the second command
+- `ADMIN_PASSWORD` — your plain-text password (the app hashes it with bcrypt at startup)
 
 ### 3. Start everything
 
 ```bash
-docker compose -f docker-compose.dev.yml up
+docker compose -f docker-compose.dev.yml up -d
 ```
 
 This starts **6 services**: FastAPI (port 8001), Redis, Celery Worker, Celery Beat, and the Vite frontend dev server (port 5173).
@@ -307,7 +301,7 @@ All configuration lives in `.env`. Copy `.env.development` or `.env.production` 
 |---|---|---|
 | `SECRET_KEY` | `a3f8d2...` | JWT signing key — use a random 64-char hex string |
 | `ADMIN_USERNAME` | `admin` | Your login username |
-| `ADMIN_PASSWORD_HASH` | `$2b$12$...` | bcrypt hash of your password — generate with `generate_hash.py` |
+| `ADMIN_PASSWORD` | `mysecretpassword` | Your plain-text password — hashed with bcrypt automatically at startup |
 
 ### App Behaviour
 
@@ -367,12 +361,6 @@ Re-scoring all 862 jobs against CV: Nayeem_Hasan_CV.pdf
 [##############################] 100%  862/862  (50% — Data Scientist)
 --------------------------------------------------
 Done in 4.6s — 862 scored, 0 failed
-```
-
-### Generate a bcrypt password hash
-
-```bash
-docker compose -f docker-compose.dev.yml run --rm fastapi python generate_hash.py
 ```
 
 ---

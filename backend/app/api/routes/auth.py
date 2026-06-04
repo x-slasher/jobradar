@@ -19,7 +19,7 @@ async def login(request: Request, body: LoginRequest, response: Response):
             detail="Invalid credentials",
         )
 
-    if not verify_password(body.password, settings.ADMIN_PASSWORD_HASH):
+    if not verify_password(body.password, settings.admin_password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",

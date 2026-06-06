@@ -53,17 +53,16 @@ sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_c
 systemctl reload sshd
 echo "SSH password auth disabled — ensure your SSH key is added before logging out"
 
-echo "==> Setting up SQLite backup cron"
+echo "==> Setting up PostgreSQL backup cron"
 mkdir -p /opt/jobradar/backups
 cat > /etc/cron.daily/jobradar-backup << 'CRON'
 #!/bin/bash
-# Daily SQLite backup — keeps last 7 backups
+# Daily PostgreSQL backup — keeps last 7 backups
 BACKUP_DIR="/opt/jobradar/backups"
 DATE=$(date +%Y%m%d_%H%M%S)
-docker run --rm -v jobradar_sqlite_data:/data -v $BACKUP_DIR:/backup \
-  alpine cp /data/jobs.db /backup/jobs_$DATE.db
+docker exec jobradar-postgres-1 pg_dump -U jobradar jobradar | gzip > $BACKUP_DIR/jobradar_$DATE.sql.gz
 # Keep only last 7 backups
-ls -t $BACKUP_DIR/jobs_*.db | tail -n +8 | xargs -r rm
+ls -t $BACKUP_DIR/jobradar_*.sql.gz | tail -n +8 | xargs -r rm
 CRON
 chmod +x /etc/cron.daily/jobradar-backup
 echo "Backup cron configured"

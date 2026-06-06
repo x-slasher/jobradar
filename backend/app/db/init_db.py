@@ -1,5 +1,5 @@
 from app.db.database import engine, Base
-from app.models.models import Job, CVVersion, UserFilter, Platform
+from app.models.models import User, Job, CVVersion, UserFilter, Platform
 from sqlalchemy.orm import Session
 import logging
 

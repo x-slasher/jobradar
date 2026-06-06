@@ -1,18 +1,49 @@
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, EmailStr, field_validator
 from typing import Optional, List, Any
 from datetime import datetime
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
+class RegisterRequest(BaseModel):
+    full_name: str
+    email: EmailStr
+    password: str
+    confirm_password: str
+
+    @field_validator("full_name")
+    @classmethod
+    def full_name_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Full name cannot be empty")
+        return v.strip()
+
+    @field_validator("password")
+    @classmethod
+    def password_min_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
+
+
 class LoginRequest(BaseModel):
-    username: str
+    email: str
     password: str
 
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class UserResponse(BaseModel):
+    id: int
+    full_name: str
+    email: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 # ── Job ───────────────────────────────────────────────────────────────────────

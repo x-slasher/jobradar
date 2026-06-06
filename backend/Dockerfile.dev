@@ -6,6 +6,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # In dev, source is mounted — no COPY needed
-RUN mkdir -p /app/data/cv_files
+RUN mkdir -p /cv_data
 
 EXPOSE 8000

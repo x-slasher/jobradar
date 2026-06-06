@@ -8,8 +8,8 @@ export function AuthProvider({ children }) {
     () => localStorage.getItem('auth') === 'true'
   )
 
-  const login = useCallback(async (username, password) => {
-    await authApi.login(username, password)
+  const login = useCallback(async (email, password) => {
+    await authApi.login(email, password)
     setIsAuthenticated(true)
     localStorage.setItem('auth', 'true')
   }, [])

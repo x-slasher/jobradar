@@ -6,13 +6,11 @@ import os
 
 settings = get_settings()
 
-# Ensure data directory exists
-os.makedirs("./data", exist_ok=True)
 os.makedirs(settings.CV_UPLOAD_DIR, exist_ok=True)
 
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args={"check_same_thread": False},  # Required for SQLite
+    pool_pre_ping=True,  # reconnect on stale connections
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

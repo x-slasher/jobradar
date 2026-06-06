@@ -1,4 +1,3 @@
-version: "3.9"
 
 # ============================================================
 # JobRadar — PRODUCTION docker-compose
@@ -19,6 +18,20 @@ services:
     networks:
       - app_network
 
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - app_network
+
   fastapi:
     build:
       context: ./backend
@@ -26,9 +39,12 @@ services:
     restart: unless-stopped
     env_file: .env
     volumes:
-      - sqlite_data:/app/data
+      - cv_data:/cv_data
     depends_on:
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     expose:
       - "8000"                  # Internal only — Caddy proxies to this
     networks:
@@ -54,9 +70,12 @@ services:
     command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=1
     env_file: .env
     volumes:
-      - sqlite_data:/app/data
+      - cv_data:/cv_data
     depends_on:
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app_network
 
@@ -68,7 +87,7 @@ services:
     command: celery -A app.tasks.celery_app beat --loglevel=info
     env_file: .env
     volumes:
-      - sqlite_data:/app/data
+      - cv_data:/cv_data
     depends_on:
       - redis
       - celery-worker
@@ -84,7 +103,8 @@ services:
       - app_network
 
 volumes:
-  sqlite_data:
+  pg_data:
+  cv_data:
   caddy_data:
   caddy_config:
 

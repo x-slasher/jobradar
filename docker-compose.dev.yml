@@ -3,13 +3,25 @@
 # JobRadar — DEVELOPMENT docker-compose
 # Usage: docker compose -f docker-compose.dev.yml up
 # ============================================================
-#
-# NOTE on ADMIN_PASSWORD_HASH: Docker Compose interpolates $ signs in env
-# files. The hash must start with a digit/dot/slash after the third $ so
-# Docker Compose doesn't treat it as a variable reference. Generate a
-# compliant hash with: python backend/generate_hash.py (see CLAUDE.md).
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jobradar
+      POSTGRES_PASSWORD: jobradar
+      POSTGRES_DB: jobradar
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jobradar -d jobradar"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - app_network
+
   fastapi:
     build:
       context: ./backend
@@ -18,11 +30,14 @@ services:
     env_file: .env
     volumes:
       - ./backend:/app           # Hot reload — mounts source code
-      - sqlite_data:/app/data
+      - cv_data:/cv_data
     ports:
       - "8001:8000"              # Exposed directly in dev (8001 avoids conflicts)
     depends_on:
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app_network
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -36,9 +51,12 @@ services:
     env_file: .env
     volumes:
       - ./backend:/app
-      - sqlite_data:/app/data
+      - cv_data:/cv_data
     depends_on:
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app_network
 
@@ -51,7 +69,7 @@ services:
     env_file: .env
     volumes:
       - ./backend:/app
-      - sqlite_data:/app/data
+      - cv_data:/cv_data
     depends_on:
       - redis
       - celery-worker
@@ -82,7 +100,8 @@ services:
       - app_network
 
 volumes:
-  sqlite_data:
+  pg_data:
+  cv_data:
 
 networks:
   app_network:

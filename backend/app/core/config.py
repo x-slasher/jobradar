@@ -1,5 +1,4 @@
 from pydantic_settings import BaseSettings
-from pydantic import model_validator
 from functools import lru_cache
 
 
@@ -14,20 +13,8 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    # Admin credentials
-    ADMIN_USERNAME: str
-    ADMIN_PASSWORD: str
-    admin_password_hash: str = ""
-
-    @model_validator(mode="after")
-    def _hash_admin_password(self) -> "Settings":
-        from passlib.context import CryptContext
-        ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        self.admin_password_hash = ctx.hash(self.ADMIN_PASSWORD)
-        return self
-
     # Database
-    DATABASE_URL: str = "sqlite:////app/data/jobs.db"
+    DATABASE_URL: str = "postgresql://jobradar:jobradar@postgres:5432/jobradar"
 
     # Redis
     REDIS_URL: str = "redis://redis:6379/0"
@@ -40,7 +27,7 @@ class Settings(BaseSettings):
     JOB_RETENTION_DAYS: int = 4
 
     # Storage
-    CV_UPLOAD_DIR: str = "/app/data/cv_files"
+    CV_UPLOAD_DIR: str = "/cv_data"
 
     # CORS - comma-separated list of allowed frontend origins
     CORS_ORIGINS: str = "http://localhost:5173"
